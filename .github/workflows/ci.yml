@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Compiler versions are pinned to match the development machine so that
+# clang-format and clang-tidy agree between local runs and CI.
+env:
+  GCC_VERSION: 16
+  CLANG_VERSION: 22
+  ASAN_OPTIONS: detect_leaks=1
+  UBSAN_OPTIONS: print_stacktrace=1
+
+jobs:
+  build:
+    name: ${{ matrix.compiler }} / ${{ matrix.preset }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        preset: [ci-debug, ci-release, ci-dev]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Install GCC ${{ env.GCC_VERSION }}
+        # Both legs install this: clang uses libstdc++ from the same GCC.
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-${GCC_VERSION}
+
+      - name: Install Clang ${{ env.CLANG_VERSION }}
+        if: matrix.compiler == 'clang'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- ${CLANG_VERSION}
+          sudo apt-get install -y clang-${CLANG_VERSION}
+
+      - name: Select compiler
+        run: |
+          if [ "${{ matrix.compiler }}" = gcc ]; then
+            echo "CC=gcc-${GCC_VERSION}"   >> "$GITHUB_ENV"
+            echo "CXX=g++-${GCC_VERSION}"  >> "$GITHUB_ENV"
+          else
+            echo "CC=clang-${CLANG_VERSION}"    >> "$GITHUB_ENV"
+            echo "CXX=clang++-${CLANG_VERSION}" >> "$GITHUB_ENV"
+          fi
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }}
+
+  lint:
+    name: clang-format / clang-tidy
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install CMake and Ninja
+        uses: lukka/get-cmake@latest
+
+      - name: Install GCC ${{ env.GCC_VERSION }} (libstdc++)
+        run: |
+          sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+          sudo apt-get update
+          sudo apt-get install -y g++-${GCC_VERSION}
+
+      - name: Install Clang ${{ env.CLANG_VERSION }} tools
+        run: |
+          wget -qO- https://apt.llvm.org/llvm.sh | sudo bash -s -- ${CLANG_VERSION}
+          sudo apt-get install -y clang-${CLANG_VERSION} clang-format-${CLANG_VERSION} clang-tidy-${CLANG_VERSION}
+
+      - name: clang-format
+        run: |
+          find src tests examples sim -type f \( -name '*.cpp' -o -name '*.hpp' \) -print0 \
+            | xargs -0 --no-run-if-empty clang-format-${CLANG_VERSION} --dry-run --Werror
+
+      - name: clang-tidy
+        env:
+          CC: clang-${{ env.CLANG_VERSION }}
+          CXX: clang++-${{ env.CLANG_VERSION }}
+        run: |
+          cmake --preset ci-debug -DFLETCH_CLANG_TIDY=ON \
+            -DFLETCH_CLANG_TIDY_EXE=/usr/bin/clang-tidy-${CLANG_VERSION}
+          cmake --build --preset ci-debug

@@ -1,0 +1,63 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 28, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "debug",
+      "displayName": "Debug",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
+    },
+    {
+      "name": "release",
+      "displayName": "Release",
+      "inherits": "base",
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "dev",
+      "displayName": "Dev (Debug + ASan + UBSan)",
+      "inherits": "debug",
+      "cacheVariables": { "FLETCH_SANITIZE": "ON" }
+    },
+    {
+      "name": "ci",
+      "hidden": true,
+      "cacheVariables": { "FLETCH_WARNINGS_AS_ERRORS": "ON" }
+    },
+    { "name": "ci-debug",   "inherits": ["ci", "debug"] },
+    { "name": "ci-release", "inherits": ["ci", "release"] },
+    { "name": "ci-dev",     "inherits": ["ci", "dev"] }
+  ],
+  "buildPresets": [
+    { "name": "debug",      "configurePreset": "debug" },
+    { "name": "release",    "configurePreset": "release" },
+    { "name": "dev",        "configurePreset": "dev" },
+    { "name": "ci-debug",   "configurePreset": "ci-debug" },
+    { "name": "ci-release", "configurePreset": "ci-release" },
+    { "name": "ci-dev",     "configurePreset": "ci-dev" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "stopOnFailure": false }
+    },
+    { "name": "debug",      "inherits": "base", "configurePreset": "debug" },
+    { "name": "release",    "inherits": "base", "configurePreset": "release" },
+    { "name": "dev",        "inherits": "base", "configurePreset": "dev" },
+    { "name": "ci-debug",   "inherits": "base", "configurePreset": "ci-debug" },
+    { "name": "ci-release", "inherits": "base", "configurePreset": "ci-release" },
+    { "name": "ci-dev",     "inherits": "base", "configurePreset": "ci-dev" }
+  ]
+}
