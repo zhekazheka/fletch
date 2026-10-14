@@ -27,10 +27,10 @@ jobs:
         compiler: [gcc, clang]
         preset: [ci-debug, ci-release, ci-dev]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install CMake and Ninja
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@v4.4.2
 
       - name: Install GCC ${{ env.GCC_VERSION }}
         # Both legs install this: clang uses libstdc++ from the same GCC.
@@ -68,10 +68,10 @@ jobs:
     name: clang-format / clang-tidy
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install CMake and Ninja
-        uses: lukka/get-cmake@latest
+        uses: lukka/get-cmake@v4.4.2
 
       - name: Install GCC ${{ env.GCC_VERSION }} (libstdc++)
         run: |
