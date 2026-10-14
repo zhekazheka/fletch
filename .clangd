@@ -1,0 +1,4 @@
+# Point clangd at the dev preset's compile database so the editor sees the
+# same flags, include paths and C++ standard as the build.
+CompileFlags:
+  CompilationDatabase: build/dev

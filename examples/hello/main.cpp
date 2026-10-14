@@ -1,6 +1,7 @@
 #include <cstdio>
 
-int main() {
+int main()
+{
     std::puts("fletch: hello, world");
     return 0;
 }

@@ -7,10 +7,26 @@ of every session writes the next ticket here. Scope creep goes under **Later**.
 ## Next
 
 **2. Blocking UDP sender and receiver, two terminals, bytes arrive.** 30 min.
+In progress on branch `ticket-02-udp-echo`, uncommitted.
 
-Done when: two processes built from `examples/` (or `src/net/` plus a tiny
-driver) exchange a datagram over loopback and the receiver prints what it got.
-Blocking BSD sockets only, no protocol logic yet.
+Done when: two executables under `examples/` exchange a datagram over
+loopback and the receiver prints sender address and byte count. Cross-check
+against `nc -u` / `nc -ul`. CI green on the PR.
+
+State at pause (2026-10-14):
+- `src/net/udp_socket.hpp`: `address`, `udp_socket` (fd + family), `error`,
+  `received_data`; `open`/`send`/`recv` return `std::expected`. Done.
+- `src/net/udp_socket.cpp`: `to_sockaddr` (returns storage + length),
+  `from_sockaddr` (optional), `as_sockaddr` with the single NOLINT, and
+  `send` with the family check. Done, builds clean.
+- Stubs left: `open` (socket + bind, set fd and family, close fd on bind
+  failure), `recv` (recvfrom with MSG_TRUNC, truncated → error, from_sockaddr
+  nullopt → error), `close` (decide what fd == -1 does).
+- Then: `examples/udp_send` and `examples/udp_recv`, add to
+  `examples/CMakeLists.txt`, parse the address argument with `inet_pton`.
+- `src/CMakeLists.txt` is already STATIC with `-fno-exceptions -fno-rtti`.
+- Also on the branch: `.clangd`, Allman + namespace indent in `.clang-format`,
+  two DESIGN.md entries (socket ownership; no exceptions; family check).
 
 ## Phase 1: something running (weeks 1 to 2)
 

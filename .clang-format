@@ -1,7 +1,9 @@
 ---
 BasedOnStyle: LLVM
+BreakBeforeBraces: Allman
 Standard: Latest
 IndentWidth: 4
+NamespaceIndentation: All
 ColumnLimit: 100
 PointerAlignment: Left
 QualifierAlignment: Left
