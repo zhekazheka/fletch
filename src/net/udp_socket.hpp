@@ -14,7 +14,8 @@ namespace fletch::net
         {
             os,
             family_mismatch,
-            truncated
+            truncated,
+            bad_address
         };
 
         kind what;

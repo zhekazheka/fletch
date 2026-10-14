@@ -19,7 +19,8 @@ Checks: >
   -readability-identifier-length,
   -misc-non-private-member-variables-in-classes,
   -cppcoreguidelines-non-private-member-variables-in-classes,
-  -misc-include-cleaner
+  -misc-include-cleaner,
+  -portability-avoid-pragma-once
 WarningsAsErrors: '*'
 HeaderFilterRegex: '^.*/src/.*'
 FormatStyle: file

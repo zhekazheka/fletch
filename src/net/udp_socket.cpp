@@ -7,15 +7,35 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
+#include <unistd.h>
 
 namespace
 {
     // The socket API takes sockaddr*; this cast is how it is meant to be used.
     const sockaddr* as_sockaddr(const sockaddr_storage& s)
     {
-        // NOLINTBEGIN
+        // NOLINTBEGIN(*-reinterpret-cast)
         return reinterpret_cast<const sockaddr*>(&s);
-        // NOLINTEND
+        // NOLINTEND(*-reinterpret-cast)
+    }
+
+    sockaddr* as_sockaddr(sockaddr_storage& s)
+    {
+        // NOLINTBEGIN(*-reinterpret-cast)
+        return reinterpret_cast<sockaddr*>(&s);
+        // NOLINTEND(*-reinterpret-cast)
+    }
+
+    int to_af(fletch::net::address::family in_family)
+    {
+        switch (in_family)
+        {
+        case fletch::net::address::family::v4:
+            return AF_INET;
+        case fletch::net::address::family::v6:
+            return AF_INET6;
+        }
+        return AF_UNSPEC; // unreachable with a valid enum; satisfies -Wreturn-type
     }
 
     struct to_sockaddr_return
@@ -96,11 +116,22 @@ namespace fletch::net
 
     std::expected<udp_socket, error> open(const address& in_address_to_bind)
     {
-        udp_socket new_socket;
+        const int af = to_af(in_address_to_bind.kind);
+        const int fd = ::socket(af, SOCK_DGRAM, 0);
+        if (fd < 0)
+        {
+            return std::unexpected(error(error::kind::os, errno));
+        }
 
-        auto [storage, len] = to_sockaddr(in_address_to_bind);
+        const auto [storage, len] = to_sockaddr(in_address_to_bind);
+        if (::bind(fd, as_sockaddr(storage), len) < 0)
+        {
+            const int saved = errno;
+            ::close(fd);
+            return std::unexpected(error(error::kind::os, saved));
+        }
 
-        return new_socket;
+        return udp_socket{.fd = fd, .family = in_address_to_bind.kind};
     }
 
     std::expected<std::size_t, error> send(udp_socket in_socket, const address& in_to,
@@ -108,15 +139,15 @@ namespace fletch::net
     {
         if (in_socket.family != in_to.kind)
         {
-            return std::unexpected(error{error::kind::family_mismatch});
+            return std::unexpected(error{.what = error::kind::family_mismatch, .os_errno = errno});
         }
 
-        auto [storage, len] = to_sockaddr(in_to);
-        ssize_t n =
+        const auto [storage, len] = to_sockaddr(in_to);
+        const ssize_t n =
             ::sendto(in_socket.fd, in_data.data(), in_data.size(), 0, as_sockaddr(storage), len);
         if (n < 0)
         {
-            return std::unexpected(error{error::kind::os, errno});
+            return std::unexpected(error{.what = error::kind::os, .os_errno = errno});
         }
 
         return static_cast<std::size_t>(n); // success wraps automatically
@@ -124,9 +155,38 @@ namespace fletch::net
 
     std::expected<received_data, error> recv(udp_socket in_socket, std::span<std::byte> out_data)
     {
-        received_data data;
-        return data;
+        sockaddr_storage from{};
+        socklen_t from_len = sizeof(from); // in-out: must be initialised
+
+        const ssize_t n = ::recvfrom(in_socket.fd, out_data.data(), out_data.size(), MSG_TRUNC,
+                                     as_sockaddr(from), &from_len);
+        if (n < 0)
+        {
+            return std::unexpected(error{.what = error::kind::os, .os_errno = errno});
+        }
+
+        const auto bytes = static_cast<std::size_t>(n); // the one sign cast, done once
+        if (bytes > out_data.size())
+        {
+            return std::unexpected(error{.what = error::kind::truncated});
+        }
+
+        const auto sender = from_sockaddr(from, from_len);
+        if (!sender)
+        {
+            return std::unexpected(error{.what = error::kind::bad_address});
+        }
+
+        return received_data{.bytes = bytes, .from = *sender};
     }
 
-    void close(udp_socket in_socket) {}
+    void close(udp_socket in_socket)
+    {
+        if (in_socket.fd == -1)
+        {
+            return;
+        }
+
+        ::close(in_socket.fd);
+    }
 } // namespace fletch::net
